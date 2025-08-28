@@ -1,26 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>FPY Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>FPY Monitoring</title>
+  <style>
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #555; padding: 4px; text-align: center; }
+    th { background: #f2f2f2; }
+    .customer { font-weight: bold; background: #d9ead3; }
+  </style>
 </head>
 <body>
-  <h2>Daily FPY Rate</h2>
-  <canvas id="fpyChart"></canvas>
-  <script>
-    const ctx = document.getElementById('fpyChart').getContext('2d');
-    const fpyChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{ labels|tojson }},
-            datasets: [{
-                label: 'Average FPY (%)',
-                data: {{ values|tojson }},
-                borderColor: 'blue',
-                fill: false
-            }]
-        }
-    });
-  </script>
+  <h2>FPY Monitoring Dashboard</h2>
+  <table>
+    <thead>
+      <tr>
+        <th rowspan="2">Customer</th>
+        <th rowspan="2">Model</th>
+        <th rowspan="2">PIC</th>
+        <th rowspan="2">Target Yield</th>
+        <th colspan="31">Test Yield (FPY)</th>
+      </tr>
+      <tr>
+        {% for d in range(1,32) %}
+          <th>{{ d }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer, model, pic, target, day, fpy in data %}
+        <tr>
+          <td>{{ customer }}</td>
+          <td>{{ model }}</td>
+          <td>{{ pic }}</td>
+          <td>{{ target }}</td>
+          {% for d in range(1,32) %}
+            <td>
+              {% if d == day %}
+                {{ fpy }}
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </body>
 </html>
