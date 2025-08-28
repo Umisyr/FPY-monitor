@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FPY Monitoring</title>
+  <style>
+    :root{
+      --bg:#0f172a;        /* slate-900 */
+      --panel:#111827;     /* gray-900 */
+      --muted:#94a3b8;     /* slate-400 */
+      --text:#e5e7eb;      /* gray-200 */
+      --accent:#38bdf8;    /* sky-400 */
+      --good:#22c55e;      /* green-500 */
+      --warn:#f59e0b;      /* amber-500 */
+      --bad:#ef4444;       /* red-500 */
+      --row:#0b1224;       /* custom dark */
+      --row-alt:#0d142a;
+      --card:#0b1224;
+      --border:#1f2937;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:linear-gradient(180deg, var(--bg), #0b1022 60%);
+      color:var(--text); font:500 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, Apple Color Emoji, Segoe UI Emoji;
+    }
+    .wrap{max-width:1200px; margin:40px auto; padding:0 20px}
+    .header{display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px}
+    h1{font-size:28px; margin:0; letter-spacing:.2px}
+    .controls{display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:12px; background:var(--panel); padding:14px; border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow)}
+    .controls .control{display:flex; flex-direction:column; gap:6px}
+    label{font-size:12px; color:var(--muted)}
+    input, select{
+      background:#0a1020; color:var(--text); border:1px solid var(--border);
+      padding:10px 12px; border-radius:12px; outline:none; transition:border .2s ease;
+    }
+    input:focus, select:focus{border-color:var(--accent)}
+    .btn{background:var(--accent); color:#001018; border:0; padding:11px 14px; border-radius:12px; font-weight:700; cursor:pointer}
+    .btn.secondary{background:#0a1020; color:var(--text); border:1px solid var(--border)}
+
+    .card{margin-top:18px; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow)}
+    .table-wrap{overflow:auto}
+    table{width:100%; border-collapse:separate; border-spacing:0}
+    thead th{position:sticky; top:0; background:#0d1430; color:#c7d2fe; text-align:left; font-size:12px; letter-spacing:.2px; padding:12px; border-bottom:1px solid var(--border); z-index:1}
+    tbody td{padding:12px; border-bottom:1px solid var(--border)}
+    tbody tr{background:var(--row)}
+    tbody tr:nth-child(even){background:var(--row-alt)}
+    .badge{font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#0a1020}
+    .kpi{display:flex; gap:16px; flex-wrap:wrap; margin:18px 0}
+    .kpi .tile{flex:1 1 220px; background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:14px}
+    .kpi .tile h3{margin:0 0 6px; font-size:12px; color:var(--muted)}
+    .kpi .tile .val{font-size:22px; font-weight:800}
+    .bar{height:8px; background:#0a1020; border:1px solid var(--border); border-radius:999px; overflow:hidden}
+    .bar > span{display:block; height:100%}
+    .fpydisplay{font-weight:800}
+    .fpydisplay.good{color:var(--good)}
+    .fpydisplay.warn{color:var(--warn)}
+    .fpydisplay.bad{color:var(--bad)}
+    .hint{color:var(--muted); font-size:12px; margin-top:6px}
+
+    @media (max-width: 900px){
+      .controls{grid-template-columns: repeat(2, minmax(0,1fr))}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>FPY Monitoring Table</h1>
+      <span class="badge" id="rowCount">0 rows</span>
+    </div>
+
+    <!-- Filters / Controls -->
+    <form class="controls" id="filterForm" onsubmit="event.preventDefault(); applyFilters();">
+      <div class="control">
+        <label for="customer">Customer</label>
+        <select id="customer">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="product">Product</label>
+        <select id="product">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="dateFrom">Date From</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div class="control">
+        <label for="dateTo">Date To</label>
+        <input type="date" id="dateTo" />
+      </div>
+      <div class="control">
+        <label for="search">Search</label>
+        <input type="text" id="search" placeholder="Search any text…" />
+      </div>
+      <div class="control" style="align-self:end; display:flex; gap:8px;">
+        <button class="btn" type="submit">Apply</button>
+        <button class="btn secondary" type="button" onclick="resetFilters()">Reset</button>
+      </div>
+    </form>
+
+    <div class="kpi" id="kpi">
+      <div class="tile"><h3>Overall FPY</h3><div class="val" id="kpiFPY">—</div><div class="bar"><span id="kpiBar" style="width:0%; background:var(--bad)"></span></div><div class="hint">Average across filtered rows</div></div>
+      <div class="tile"><h3>Total Units</h3><div class="val" id="kpiUnits">—</div><div class="hint">Tested / Passed</div></div>
+      <div class="tile"><h3>Customers</h3><div class="val" id="kpiCust">—</div><div class="hint">Distinct customers in view</div></div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="fpyTable">
+          <thead>
+            <tr>
+              <th data-sort="date">Date ▲▼</th>
+              <th data-sort="customer">Customer ▲▼</th>
+              <th data-sort="product">Product ▲▼</th>
+              <th data-sort="tested" style="text-align:right">Units Tested ▲▼</th>
+              <th data-sort="passed" style="text-align:right">Units Passed ▲▼</th>
+              <th data-sort="fpy" style="text-align:right">FPY % ▲▼</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Sample rows; replace or populate dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="hint">Tip: Click the column headers to sort. Use the filters to narrow by customer, product, or date range.</p>
+  </div>
+
+  <script>
+    // ==== Demo data (replace with your backend feed) ====
+    const rows = [
+      {date:'2025-08-24', customer:'Customer A', product:'P-Alpha', tested:120, passed:116},
+      {date:'2025-08-24', customer:'Customer B', product:'P-Beta',  tested:90,  passed:85},
+      {date:'2025-08-25', customer:'Customer A', product:'P-Alpha', tested:140, passed:133},
+      {date:'2025-08-25', customer:'Customer A', product:'P-Gamma', tested:60,  passed:59},
+      {date:'2025-08-25', customer:'Customer C', product:'P-Delta', tested:200, passed:194},
+      {date:'2025-08-26', customer:'Customer B', product:'P-Beta',  tested:110, passed:105},
+      {date:'2025-08-26', customer:'Customer C', product:'P-Delta', tested:180, passed:171},
+      {date:'2025-08-27', customer:'Customer A', product:'P-Alpha', tested:130, passed:127},
+      {date:'2025-08-27', customer:'Customer B', product:'P-Epsilon', tested:75, passed:70},
+      {date:'2025-08-27', customer:'Customer C', product:'P-Delta', tested:210, passed:206}
+    ].map(r=>({ ...r, fpy: +(r.passed / r.tested * 100).toFixed(2) }));
+
+    const tbody = document.querySelector('#fpyTable tbody');
+    const rowCount = document.getElementById('rowCount');
+
+    const selectCustomer = document.getElementById('customer');
+    const selectProduct  = document.getElementById('product');
+
+    function unique(list, key){ return [...new Set(list.map(x => x[key]))].sort(); }
+
+    function populateFilters(){
+      unique(rows, 'customer').forEach(c=>{
+        const o=document.createElement('option'); o.value=c; o.textContent=c; selectCustomer.appendChild(o);
+      });
+      unique(rows, 'product').forEach(p=>{
+        const o=document.createElement('option'); o.value=p; o.textContent=p; selectProduct.appendChild(o);
+      });
+    }
+
+    function colorForFPY(v){
+      if (v >= 98) return 'var(--good)';
+      if (v >= 95) return 'var(--warn)';
+      return 'var(--bad)';
+    }
+
+    function render(data){
+      tbody.innerHTML = '';
+      data.forEach(r=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML = `
+          <td>${r.date}</td>
+          <td>${r.customer}</td>
+          <td>${r.product}</td>
+          <td style="text-align:right">${r.tested.toLocaleString()}</td>
+          <td style="text-align:right">${r.passed.toLocaleString()}</td>
+          <td style="text-align:right"><span class="fpydisplay" style="color:${colorForFPY(r.fpy)}">${r.fpy.toFixed(2)}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+      rowCount.textContent = `${data.length} row${data.length!==1?'s':''}`;
+      updateKPI(data);
+    }
+
+    function updateKPI(data){
+      const tested = data.reduce((a,b)=>a+b.tested,0);
+      const passed = data.reduce((a,b)=>a+b.passed,0);
+      const fpy = tested? (passed/tested*100):0;
+      const bar = document.getElementById('kpiBar');
+      const fpyEl = document.getElementById('kpiFPY');
+      const unitsEl = document.getElementById('kpiUnits');
+      const custEl = document.getElementById('kpiCust');
+
+      fpyEl.textContent = fpy? fpy.toFixed(2) + '%' : '—';
+      bar.style.width = Math.min(100, fpy).toFixed(2) + '%';
+      bar.style.background = colorForFPY(fpy);
+      unitsEl.textContent = `${tested.toLocaleString()} / ${passed.toLocaleString()}`;
+      custEl.textContent = unique(data,'customer').length;
+    }
+
+    function withinDateRange(d, from, to){
+      const x = new Date(d);
+      if (from && x < new Date(from)) return false;
+      if (to   && x > new Date(to))   return false;
+      return true;
+    }
+
+    function applyFilters(){
+      const cust = document.getElementById('customer').value;
+      const prod = document.getElementById('product').value;
+      const from = document.getElementById('dateFrom').value;
+      const to   = document.getElementById('dateTo').value;
+      const q    = document.getElementById('search').value.toLowerCase().trim();
+
+      let filtered = rows.filter(r => (
+        (!cust || r.customer === cust) &&
+        (!prod || r.product === prod) &&
+        withinDateRange(r.date, from, to) &&
+        (q === '' || Object.values(r).join(' ').toLowerCase().includes(q))
+      ));
+      render(sortData(filtered));
+    }
+
+    // Sorting
+    let sortState = { key:'date', dir: 'asc' };
+    function sortData(data){
+      const {key, dir} = sortState;
+      const sorted = [...data].sort((a,b)=>{
+        const av = a[key], bv = b[key];
+        if (key === 'date') return (dir==='asc'?1:-1) * (new Date(av) - new Date(bv));
+        if (typeof av === 'number' && typeof bv === 'number') return (dir==='asc'? av-bv : bv-av);
+        return (dir==='asc'? 1 : -1) * av.toString().localeCompare(bv.toString());
+      });
+      return sorted;
+    }
+
+    document.querySelectorAll('th[data-sort]').forEach(th=>{
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', ()=>{
+        const key = th.getAttribute('data-sort');
+        sortState.dir = (sortState.key===key && sortState.dir==='asc') ? 'desc' : 'asc';
+        sortState.key = key;
+        applyFilters();
+      });
+    });
+
+    // Init
+    populateFilters();
+    render(sortData(rows));
+  </script>
+</body>
+</html>
