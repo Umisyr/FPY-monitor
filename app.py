@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 def get_fpy_data():
     # Load your Excel file
-    df = pd.read_excel("fpy_data.xlsx")  # replace with your file name
+    df = pd.read_excel("Engineering Yield Tracker.xlsx")  # replace with your file name
 
     # Expected columns: Customer | Model | PIC | Target Yield | 1 | 2 | 3 ... 31
     data = df.to_dict(orient="records")
