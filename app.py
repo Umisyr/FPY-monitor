@@ -1,20 +1,16 @@
-from flask import Flask, render_template
+from flask import Flask, jsonify
 import pandas as pd
 
 app = Flask(__name__)
 
-def get_fpy_data():
-    # Load your Excel file
-    df = pd.read_excel("Engineering Yield Tracker.xlsx")  # replace with your file name
+@app.route("/data")
+def get_data():
+    # Load Excel file (must be in same folder as this script)
+    df = pd.read_excel("fpy_data.xlsx")   # columns: Date, Customer, Product, Tested, Passed
+    df["FPY"] = (df["Passed"] / df["Tested"] * 100).round(2)
 
-    # Expected columns: Customer | Model | PIC | Target Yield | 1 | 2 | 3 ... 31
-    data = df.to_dict(orient="records")
-    return data
-
-@app.route("/")
-def index():
-    data = get_fpy_data()
-    return render_template("index.html", data=data)
+    # Convert to JSON and send to frontend
+    return jsonify(df.to_dict(orient="records"))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
