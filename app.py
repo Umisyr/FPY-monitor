@@ -6,7 +6,7 @@ app = Flask(__name__)
 @app.route("/data")
 def get_data():
     # Load your Excel file
-    df = pd.read_excel("Engineering Yield Tracker (1).xlsx", header=1)  # Row 2 as header
+    df = pd.read_excel("Engineering Yield Tracker (1).xlsx", sheet_name=0, header=1)  # Row 2 as header
 
     # Select relevant parts
     base_cols = ["Model", "PIC", "Target Yield"]
@@ -33,3 +33,26 @@ def get_data():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
+
+# import pandas as pd
+
+# # Load file
+# df = pd.read_excel("Engineering Yield Tracker (1).xlsx", sheet_name=0, header=1)   # use correct sheet index or name
+
+# # Clean column names
+# df.columns = df.columns.str.strip()
+
+# print("Columns:", df.columns.tolist())   # <-- check what Pandas actually sees
+
+# # Reshape from wide (days in columns) to long (one row per day)
+# melted = df.melt(
+#     id_vars=["Model", "PIC", "Target Yield"],   # must exactly match printed names
+#     var_name="Day",
+#     value_name="FPY"
+# )
+
+# # Drop NA and rows without FPY values
+# melted = melted.dropna(subset=["FPY"])
+
+# print(melted.head())
