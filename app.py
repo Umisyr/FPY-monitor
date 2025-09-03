@@ -5,12 +5,31 @@ app = Flask(__name__)
 
 @app.route("/data")
 def get_data():
-    # Load Excel file (must be in same folder as this script)
-    df = pd.read_excel("Engineering Yield Tracker (1).xlsx")   # columns: Date, Customer, Product, Tested, Passed
-    df["FPY"] = (df["Passed"] / df["Tested"] * 100).round(2)
+    # Load your Excel file
+    df = pd.read_excel("Engineering Yield Tracker (1).xlsx", header=1)  # Row 2 as header
 
-    # Convert to JSON and send to frontend
-    return jsonify(df.to_dict(orient="records"))
+    # Select relevant parts
+    base_cols = ["Model", "PIC", "Target Yield"]
+    date_cols = [c for c in df.columns if isinstance(c, (int, float)) or str(c).isdigit()]
+
+    # Melt (reshape wide → long)
+    long_df = df.melt(
+        id_vars=base_cols,
+        value_vars=date_cols,
+        var_name="Day",
+        value_name="FPY"
+    )
+
+    # Clean data
+    long_df = long_df.dropna(subset=["FPY"])          # drop empty cells
+    long_df = long_df[~long_df["FPY"].isin(["NP","TBC"])]  # remove NP/TBC
+    long_df["FPY"] = long_df["FPY"].astype(str).str.replace("%","").astype(float)
+
+    # Example: add full date (assuming August 2025)
+    long_df["Date"] = pd.to_datetime("2025-08-" + long_df["Day"].astype(str), errors="coerce")
+
+    # Convert to JSON
+    return jsonify(long_df.to_dict(orient="records"))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
