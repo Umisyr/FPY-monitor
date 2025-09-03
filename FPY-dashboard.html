@@ -2,45 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>FPY Monitoring Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FPY Monitoring</title>
   <style>
-    body { background:#0f172a; color:#e5e7eb; font-family:sans-serif; margin:20px; }
-    .card{background:#111827; padding:20px; border-radius:12px; margin-bottom:20px;}
-    table{width:100%; border-collapse:collapse; margin-top:10px;}
-    th, td{padding:8px; border-bottom:1px solid #333;}
-    th{background:#1e293b;}
-    .good{color:#22c55e;} .warn{color:#f59e0b;} .bad{color:#ef4444;}
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; }
+    .wrap { max-width: 1200px; margin: 20px auto; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 8px 12px; border: 1px solid #333; text-align: left; }
+    th { background: #1f2937; cursor: pointer; }
+    tr:nth-child(even) { background: #111827; }
+    tr:nth-child(odd) { background: #0b1224; }
   </style>
 </head>
 <body>
-  <h1>FPY Monitoring Dashboard</h1>
+  <div class="wrap">
+    <h1>FPY Monitoring Dashboard</h1>
+    <span id="rowCount">0 rows</span>
+    
+    <div class="filters">
+      <label>Customer:
+        <select id="customer"><option value="">All</option></select>
+      </label>
+      <label>Model:
+        <select id="model"><option value="">All</option></select>
+      </label>
+      <input type="text" id="search" placeholder="Search text..."/>
+      <button onclick="applyFilters()">Apply</button>
+      <button onclick="resetFilters()">Reset</button>
+    </div>
 
-  <!-- KPI -->
-  <div class="card">
-    <h2>KPIs</h2>
-    <p id="kpiFPY">Overall FPY: —</p>
-    <p id="kpiModels">Models: —</p>
-    <p id="kpiDays">Days Covered: —</p>
-  </div>
-
-  <!-- Trend Chart -->
-  <div class="card">
-    <h2>FPY Trend (per Model)</h2>
-    <canvas id="fpyChart" height="120"></canvas>
-  </div>
-
-  <!-- Table -->
-  <div class="card">
-    <h2>Data Table</h2>
     <table id="fpyTable">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Model</th>
-          <th>PIC</th>
-          <th>Target</th>
-          <th>FPY %</th>
+          <th data-sort="Customer">Customer ▲▼</th>
+          <th data-sort="Model">Model ▲▼</th>
+          <th data-sort="PIC">PIC ▲▼</th>
+          <th data-sort="Target Yield">Target Yield ▲▼</th>
+          <th data-sort="Day">Day ▲▼</th>
+          <th data-sort="FPY">FPY ▲▼</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -49,79 +48,37 @@
 
   <script>
     let rows = [];
-    let chart;
+    let sortState = { key: "Day", dir: "asc" };
 
-    fetch("http://localhost:5000/data")
-      .then(res => res.json())
-      .then(data => {
-        rows = data;
-        renderTable(rows);
-        renderKPI(rows);
-        renderChart(rows);
+    async function fetchData() {
+      const res = await fetch("http://127.0.0.1:5000/data");
+      rows = await res.json();
+      populateFilters();
+      render(sortData(rows));
+    }
+
+    function populateFilters() {
+      const custSel = document.getElementById("customer");
+      const modelSel = document.getElementById("model");
+      const unique = (arr, key) => [...new Set(arr.map(r => r[key]))].sort();
+
+      unique(rows, "Customer").forEach(c => {
+        let o = document.createElement("option");
+        o.value = c; o.textContent = c; custSel.appendChild(o);
       });
+      unique(rows, "Model").forEach(m => {
+        let o = document.createElement("option");
+        o.value = m; o.textContent = m; modelSel.appendChild(o);
+      });
+    }
 
-    function renderTable(data){
+    function render(data) {
       const tbody = document.querySelector("#fpyTable tbody");
       tbody.innerHTML = "";
-      data.forEach(r=>{
-        const cls = r.FPY >= 98 ? "good" : r.FPY >= 95 ? "warn" : "bad";
-        tbody.innerHTML += `
-          <tr>
-            <td>${r.Date ? r.Date.split("T")[0] : r.Day}</td>
-            <td>${r.Model}</td>
-            <td>${r.PIC}</td>
-            <td>${r["Target Yield"]}%</td>
-            <td class="${cls}">${r.FPY.toFixed(2)}%</td>
-          </tr>`;
-      });
-    }
-
-    function renderKPI(data){
-      const fpy = (data.reduce((a,b)=>a+b.FPY,0)/data.length).toFixed(2);
-      const models = [...new Set(data.map(d=>d.Model))].length;
-      const days = [...new Set(data.map(d=>d.Day))].length;
-      document.getElementById("kpiFPY").textContent = "Average FPY: " + fpy + "%";
-      document.getElementById("kpiModels").textContent = "Models: " + models;
-      document.getElementById("kpiDays").textContent = "Days Covered: " + days;
-    }
-
-    function renderChart(data){
-      const ctx = document.getElementById("fpyChart").getContext("2d");
-      if(chart) chart.destroy();
-
-      // Group by Model
-      const models = [...new Set(data.map(d=>d.Model))];
-      const days = [...new Set(data.map(d=>d.Day))].sort((a,b)=>a-b);
-
-      const datasets = models.map(model=>{
-        const modelData = days.map(day=>{
-          const rec = data.find(r=>r.Model===model && r.Day===day);
-          return rec ? rec.FPY : null;
-        });
-        return {
-          label:model,
-          data:modelData,
-          borderWidth:2,
-          borderColor:randomColor(),
-          fill:false
-        }
-      });
-
-      chart = new Chart(ctx,{
-        type:"line",
-        data:{ labels:days, datasets },
-        options:{
-          responsive:true,
-          interaction:{mode:'nearest',intersect:false},
-          plugins:{legend:{position:"bottom"}},
-          scales:{y:{min:0,max:100,ticks:{callback:v=>v+"%"}}}
-        }
-      });
-    }
-
-    function randomColor(){
-      return `hsl(${Math.floor(Math.random()*360)},70%,60%)`;
-    }
-  </script>
-</body>
-</html>
+      data.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.Customer}</td>
+          <td>${r.Model}</td>
+          <td>${r.PIC}</td>
+          <td>${r["Target Yield"]}</td>
