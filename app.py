@@ -6,7 +6,7 @@ app = Flask(__name__)
 @app.route("/data")
 def get_data():
     # Load Excel file (must be in same folder as this script)
-    df = pd.read_excel("fpy_data.xlsx")   # columns: Date, Customer, Product, Tested, Passed
+    df = pd.read_excel("Engineering Yield Tracker (1).xlsx")   # columns: Date, Customer, Product, Tested, Passed
     df["FPY"] = (df["Passed"] / df["Tested"] * 100).round(2)
 
     # Convert to JSON and send to frontend
