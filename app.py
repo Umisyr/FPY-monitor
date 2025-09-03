@@ -3,36 +3,34 @@ import pandas as pd
 
 app = Flask(__name__)
 
-@app.route("/data")
-def get_data():
-    # Load your Excel file
-    df = pd.read_excel("Engineering Yield Tracker (1).xlsx", sheet_name=0, header=1)  # Row 2 as header
+# Path to your Excel file
+EXCEL_FILE = "Engineering Yield Tracker (1).xlsx"
 
-    # Select relevant parts
-    base_cols = ["Model", "PIC", "Target Yield"]
-    date_cols = [c for c in df.columns if isinstance(c, (int, float)) or str(c).isdigit()]
+def load_data():
+    # Read Excel, use the 2nd row as header (index=1)
+    df = pd.read_excel(EXCEL_FILE, header=1)
 
-    # Melt (reshape wide → long)
-    long_df = df.melt(
-        id_vars=base_cols,
-        value_vars=date_cols,
+    # Drop completely empty rows (Excel often has them)
+    df = df.dropna(how="all")
+
+    # Melt the "wide" format into a "long" format
+    melted = df.melt(
+        id_vars=["Customer", "Model", "PIC", "Target Yield"],
         var_name="Day",
         value_name="FPY"
-    )
+    ).dropna(subset=["FPY"])  # drop rows where FPY is empty
 
-    # Clean data
-    long_df = long_df.dropna(subset=["FPY"])          # drop empty cells
-    long_df = long_df[~long_df["FPY"].isin(["NP","TBC"])]  # remove NP/TBC
-    long_df["FPY"] = long_df["FPY"].astype(str).str.replace("%","").astype(float)
+    # Convert to dictionary (JSON friendly)
+    return melted.to_dict(orient="records")
 
-    # Example: add full date (assuming August 2025)
-    long_df["Date"] = pd.to_datetime("2025-08-" + long_df["Day"].astype(str), errors="coerce")
-
-    # Convert to JSON
-    return jsonify(long_df.to_dict(orient="records"))
+@app.route("/data")
+def get_data():
+    data = load_data()
+    return jsonify(data)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
+
 
 
 # import pandas as pd
