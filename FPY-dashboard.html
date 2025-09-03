@@ -82,3 +82,56 @@
           <td>${r.Model}</td>
           <td>${r.PIC}</td>
           <td>${r["Target Yield"]}</td>
+          <td>${r.Day}</td>
+          <td>${r.FPY}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      document.getElementById("rowCount").textContent = `${data.length} rows`;
+    }
+
+    function applyFilters() {
+      const cust = document.getElementById("customer").value;
+      const model = document.getElementById("model").value;
+      const q = document.getElementById("search").value.toLowerCase().trim();
+
+      let filtered = rows.filter(r =>
+        (!cust || r.Customer === cust) &&
+        (!model || r.Model === model) &&
+        (q === "" || Object.values(r).join(" ").toLowerCase().includes(q))
+      );
+      render(sortData(filtered));
+    }
+
+    function resetFilters() {
+      document.getElementById("customer").value = "";
+      document.getElementById("model").value = "";
+      document.getElementById("search").value = "";
+      render(sortData(rows));
+    }
+
+    function sortData(data) {
+      const { key, dir } = sortState;
+      return [...data].sort((a, b) => {
+        const av = a[key], bv = b[key];
+        if (!isNaN(Date.parse(av)) && !isNaN(Date.parse(bv)))
+          return (dir === "asc" ? 1 : -1) * (new Date(av) - new Date(bv));
+        if (!isNaN(parseFloat(av)) && !isNaN(parseFloat(bv)))
+          return dir === "asc" ? av - bv : bv - av;
+        return (dir === "asc" ? 1 : -1) * av.toString().localeCompare(bv.toString());
+      });
+    }
+
+    document.querySelectorAll("th[data-sort]").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-sort");
+        sortState.dir = (sortState.key === key && sortState.dir === "asc") ? "desc" : "asc";
+        sortState.key = key;
+        applyFilters();
+      });
+    });
+
+    fetchData();
+  </script>
+</body>
+</html>
