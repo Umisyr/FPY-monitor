@@ -159,6 +159,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FPY Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; }
     .wrap { max-width: 1200px; margin: 20px auto; padding: 10px; }
@@ -174,6 +175,11 @@
     <h1>FPY Monitoring Dashboard</h1>
     <span id="rowCount">0 rows</span>
     
+    <div style="margin-top:20px;">
+    <h2>FPY Trend</h2>
+    <canvas id="fpyChart" height="100"></canvas>
+    </div>
+
     <div class="filters">
       <label>Customer:
         <select id="customer"><option value="">All</option></select>
@@ -207,6 +213,7 @@
   <script>
     let rows = [];
     let sortState = { key: "Day", dir: "asc" };
+    let chart; // global variable
 
     async function fetchData() {
       try {
@@ -240,6 +247,62 @@
       });
     }
 
+    function renderChart(data) {
+      const ctx = document.getElementById("fpyChart").getContext("2d");
+
+      // Group by Model → { Model: {Day: FPY} }
+      const grouped = {};
+      data.forEach(r => {
+        if (!grouped[r.Model]) grouped[r.Model] = {};
+        grouped[r.Model][r.Day] = r.FPY;
+      });
+
+      // Collect all unique days, sorted
+      const labels = [...new Set(data.map(r => r.Day))].sort((a, b) => a - b);
+
+      // Create dataset per Model
+      const datasets = Object.keys(grouped).map((model, i) => {
+        const values = labels.map(day => grouped[model][day] ?? null);
+        const color = `hsl(${i * 50 % 360}, 70%, 50%)`; // auto-generate colors
+        return {
+          label: model,
+          data: values,
+          borderColor: color,
+          backgroundColor: color,
+          tension: 0.3,
+          spanGaps: true
+        };
+      });
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" } }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Day", color: "#e5e7eb" },
+              ticks: { color: "#e5e7eb" }
+            },
+            y: {
+              title: { display: true, text: "FPY", color: "#e5e7eb" },
+              ticks: { color: "#e5e7eb" },
+              min: 0,
+              max: 1 // FPY usually between 0 and 1
+            }
+          }
+        }
+      });
+    }
+
     function render(data) {
       const tbody = document.querySelector("#fpyTable tbody");
       tbody.innerHTML = "";
@@ -256,6 +319,9 @@
         tbody.appendChild(tr);
       });
       document.getElementById("rowCount").textContent = `${data.length} rows`;
+
+      // 🔹 draw chart from same filtered data
+      renderChart(data);
     }
 
     function applyFilters() {
