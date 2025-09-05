@@ -51,10 +51,14 @@
     let sortState = { key: "Day", dir: "asc" };
 
     async function fetchData() {
-      const res = await fetch("http://127.0.0.1:5000/data");
-      rows = await res.json();
-      populateFilters();
-      render(sortData(rows));
+      try {
+        const res = await fetch("/data");  // ✅ relative URL (same origin)
+        rows = await res.json();
+        populateFilters();
+        render(sortData(rows));
+      } catch (err) {
+        console.error("Fetch failed:", err);
+      }
     }
 
     function populateFilters() {
@@ -78,12 +82,12 @@
       data.forEach(r => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${r.Customer}</td>
-          <td>${r.Model}</td>
-          <td>${r.PIC}</td>
-          <td>${r["Target Yield"]}</td>
-          <td>${r.Day}</td>
-          <td>${r.FPY}</td>
+          <td>${r.Customer || ""}</td>
+          <td>${r.Model || ""}</td>
+          <td>${r.PIC || ""}</td>
+          <td>${r["Target Yield"] ?? ""}</td>
+          <td>${r.Day ?? ""}</td>
+          <td>${r.FPY ?? ""}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -114,8 +118,6 @@
       const { key, dir } = sortState;
       return [...data].sort((a, b) => {
         const av = a[key], bv = b[key];
-        if (!isNaN(Date.parse(av)) && !isNaN(Date.parse(bv)))
-          return (dir === "asc" ? 1 : -1) * (new Date(av) - new Date(bv));
         if (!isNaN(parseFloat(av)) && !isNaN(parseFloat(bv)))
           return dir === "asc" ? av - bv : bv - av;
         return (dir === "asc" ? 1 : -1) * av.toString().localeCompare(bv.toString());

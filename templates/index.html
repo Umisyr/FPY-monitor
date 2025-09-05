@@ -1,41 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FPY Monitoring</title>
   <style>
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid #555; padding: 4px; text-align: center; }
-    th { background: #f2f2f2; }
-    .customer { font-weight: bold; background: #d9ead3; }
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#e5e7eb; }
+    .wrap { max-width: 1200px; margin: 20px auto; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 8px 12px; border: 1px solid #333; text-align: left; }
+    th { background: #1f2937; cursor: pointer; }
+    tr:nth-child(even) { background: #111827; }
+    tr:nth-child(odd) { background: #0b1224; }
   </style>
 </head>
 <body>
-  <h2>FPY Monitoring Dashboard</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Customer</th>
-        <th>Model</th>
-        <th>PIC</th>
-        <th>Target Yield</th>
-        {% for d in range(1,32) %}
-          <th>{{ d }}</th>
-        {% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in data %}
+  <div class="wrap">
+    <h1>FPY Monitoring Dashboard</h1>
+    <span id="rowCount">0 rows</span>
+    
+    <div class="filters">
+      <label>Customer:
+        <select id="customer"><option value="">All</option></select>
+      </label>
+      <label>Model:
+        <select id="model"><option value="">All</option></select>
+      </label>
+      <input type="text" id="search" placeholder="Search text..."/>
+      <button onclick="applyFilters()">Apply</button>
+      <button onclick="resetFilters()">Reset</button>
+    </div>
+
+    <table id="fpyTable">
+      <thead>
         <tr>
-          <td>{{ row['Customer'] }}</td>
-          <td>{{ row['Model'] }}</td>
-          <td>{{ row['PIC'] }}</td>
-          <td>{{ row['Target Yield'] }}</td>
-          {% for d in range(1,32) %}
-            <td>{{ row.get(d, '') }}</td>
-          {% endfor %}
+          <th data-sort="Customer">Customer ▲▼</th>
+          <th data-sort="Model">Model ▲▼</th>
+          <th data-sort="PIC">PIC ▲▼</th>
+          <th data-sort="Target Yield">Target Yield ▲▼</th>
+          <th data-sort="Day">Day ▲▼</th>
+          <th data-sort="FPY">FPY ▲▼</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    let rows = [];
+    let sortState = { key: "Day", dir: "asc" };
+
+    async function fetchData() {
+      try {
+        const res = await fetch("http://127.0.0.1:5000/data");  // ✅ relative URL (same origin)
+        rows = await res.json();
+        populateFilters();
+        render(sortData(rows));
+      } catch (err) {
+        console.error("Fetch failed:", err);
+      }
+    }
+
+    function populateFilters() {
+      const custSel = document.getElementById("customer");
+      const modelSel = document.getElementById("model");
+      const unique = (arr, key) => [...new Set(arr.map(r => r[key]))].sort();
+
+      unique(rows, "Customer").forEach(c => {
+        let o = document.createElement("option");
+        o.value = c; o.textContent = c; custSel.appendChild(o);
+      });
+      unique(rows, "Model").forEach(m => {
+        let o = document.createElement("option");
+        o.value = m; o.textContent = m; modelSel.appendChild(o);
+      });
+    }
+
+    function render(data) {
+      const tbody = document.querySelector("#fpyTable tbody");
+      tbody.innerHTML = "";
+      data.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.Customer || ""}</td>
+          <td>${r.Model || ""}</td>
+          <td>${r.PIC || ""}</td>
+          <td>${r["Target Yield"] ?? ""}</td>
+          <td>${r.Day ?? ""}</td>
+          <td>${r.FPY ?? ""}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      document.getElementById("rowCount").textContent = `${data.length} rows`;
+    }
+
+    function applyFilters() {
+      const cust = document.getElementById("customer").value;
+      const model = document.getElementById("model").value;
+      const q = document.getElementById("search").value.toLowerCase().trim();
+
+      let filtered = rows.filter(r =>
+        (!cust || r.Customer === cust) &&
+        (!model || r.Model === model) &&
+        (q === "" || Object.values(r).join(" ").toLowerCase().includes(q))
+      );
+      render(sortData(filtered));
+    }
+
+    function resetFilters() {
+      document.getElementById("customer").value = "";
+      document.getElementById("model").value = "";
+      document.getElementById("search").value = "";
+      render(sortData(rows));
+    }
+
+    function sortData(data) {
+      const { key, dir } = sortState;
+      return [...data].sort((a, b) => {
+        const av = a[key], bv = b[key];
+        if (!isNaN(parseFloat(av)) && !isNaN(parseFloat(bv)))
+          return dir === "asc" ? av - bv : bv - av;
+        return (dir === "asc" ? 1 : -1) * av.toString().localeCompare(bv.toString());
+      });
+    }
+
+    document.querySelectorAll("th[data-sort]").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-sort");
+        sortState.dir = (sortState.key === key && sortState.dir === "asc") ? "desc" : "asc";
+        sortState.key = key;
+        applyFilters();
+      });
+    });
+
+    fetchData();
+  </script>
 </body>
 </html>
